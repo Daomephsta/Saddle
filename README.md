@@ -2,7 +2,7 @@
 A simple test harness for running JUnit 5's Jupiter engine inside Minecraft. It only works with Minecraft Forge at this time.
 
 ### Installing Saddle
-Saddle is not available on any maven. You should download one of the precompiled releases, compile Saddle yourself, or use [JitPack](https://jitpack.io/). Saddle should be added to Gradle's `testImplementation` configuration.
+Saddle is not available on any maven. You should download one of the [precompiled releases](https://github.com/Daomephsta/Saddle/releases), compile Saddle yourself, or use [JitPack](https://jitpack.io/). Saddle should be added to Gradle's `testImplementation` configuration.
 
 ### Creating Saddle Tests
 Saddle tests are created in exactly the same way as Jupiter tests, with the exception that they must be annotated with `io.github.daomephsta.saddle.engine.SaddleTest` instead of `org.junit.jupiter.api.Test`. All other Jupiter annotations work as normal.
