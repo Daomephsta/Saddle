@@ -63,7 +63,7 @@ public class Saddle
     
     private void executeSaddleTests(LoadPhase loadPhase)
     {
-        if (System.getProperty("saddle.disable").equals("true"))
+        if (System.getProperty("saddle.disable", "false").equals("true"))
         {
             LOGGER.info("saddle.disable is true, skipping tests for {}", loadPhase);
             return;
