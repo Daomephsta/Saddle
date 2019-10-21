@@ -2,6 +2,7 @@ package io.github.daomephsta.saddle;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 
 import org.apache.logging.log4j.LogManager;
@@ -42,7 +43,10 @@ public class Saddle
     private void setup()
     {
         SADDLE_LOG_DIR.mkdirs();
-        configuration = SaddleConfiguration.from(ClassLoader.getSystemClassLoader().getResourceAsStream("saddle-config.json"));
+        InputStream configFile = ClassLoader.getSystemClassLoader().getResourceAsStream("saddle-config.json");
+        if (configFile == null)
+            throw new IllegalStateException("Missing saddle-config.json");
+        configuration = SaddleConfiguration.from(configFile);
     }
     
     @Mod.EventHandler
