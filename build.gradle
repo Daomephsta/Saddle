@@ -1,0 +1,69 @@
+
+// For those who want the bleeding edge
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            name = "forge"
+            url = "http://files.minecraftforge.net/maven"
+        }
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
+    }
+}
+apply plugin: 'net.minecraftforge.gradle.forge'
+apply plugin: 'maven-publish'
+
+version = project.modVersion
+group = "io.github.daomephsta" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
+archivesBaseName = "Saddle"
+
+minecraft {
+    version = project.forgeVersion
+    runDir = "run"
+	
+    mappings = project.mappingsVersion
+    makeObfSourceJar = false
+    
+    replace 'GRADLE:VERSION', project.modVersion
+}
+
+repositories  {
+    mavenCentral()
+}
+
+dependencies  {
+ 	// Use JUnit test framework
+    implementation 'org.junit.jupiter:junit-jupiter-api:5.5.2'
+	implementation 'org.junit.platform:junit-platform-launcher:1.5.2'
+	runtimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.5.2'
+}
+
+publishing {
+	publications {
+		saddle(MavenPublication) {
+			artifact jar
+			artifact sourceJar
+		}
+	}
+}
+
+processResources
+{
+    // this will ensure that this task is redone when the versions change.
+    inputs.property "version", project.version
+    inputs.property "mcversion", project.minecraft.version
+
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+                
+        // replace version and mcversion
+        expand 'version': project.modVersion, 'mcversion': project.minecraft.version
+    }
+        
+    // copy everything else, thats not the mcmod.info
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
+    }
+}
