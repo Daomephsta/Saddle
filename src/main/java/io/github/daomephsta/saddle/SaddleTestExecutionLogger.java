@@ -6,10 +6,14 @@ import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestIdentifier;
 
+import it.unimi.dsi.fastutil.objects.Object2LongMap;
+import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
+
 public class SaddleTestExecutionLogger implements TestExecutionListener
 {
     private final Logger logger;
     private final Level logLevel;
+    private final Object2LongMap<String> testStartTimes = new Object2LongOpenHashMap<>();
     private int indentLevel = 0;
 
     public SaddleTestExecutionLogger(Logger logger, Level logLevel)
@@ -21,6 +25,7 @@ public class SaddleTestExecutionLogger implements TestExecutionListener
     @Override
     public void executionStarted(TestIdentifier testIdentifier)
     {
+        testStartTimes.put(testIdentifier.getUniqueId(), System.currentTimeMillis());
         logWithIndent(logLevel, "{} started", testIdentifier.getDisplayName());
         indentLevel++;
     }
@@ -35,19 +40,21 @@ public class SaddleTestExecutionLogger implements TestExecutionListener
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult result)
     {
         indentLevel--;
+        long runtime = System.currentTimeMillis() - testStartTimes.getLong(testIdentifier.getUniqueId());
         switch (result.getStatus())
         {
         case ABORTED:
-            logWithIndent(logLevel, "{} aborted", testIdentifier.getDisplayName());
+            logWithIndent(logLevel, "{} aborted in {} ms", testIdentifier.getDisplayName(), runtime);
             break;
         case FAILED:
-            logWithIndent(logLevel, "{} failed", testIdentifier.getDisplayName());
+            logWithIndent(logLevel, "{} failed in {} ms", testIdentifier.getDisplayName(), runtime);
             break;
         case SUCCESSFUL:
-            logWithIndent(logLevel, "{} passed", testIdentifier.getDisplayName());
+            logWithIndent(logLevel, "{} passed in {} ms", testIdentifier.getDisplayName(), runtime);
             break;
         default:
-            logWithIndent(logLevel, "{} finished with unknown status {}", testIdentifier.getDisplayName(), result.getStatus());
+            logWithIndent(logLevel, "{} finished with unknown status {} in {} ms",
+                testIdentifier.getDisplayName(), result.getStatus(), runtime);
             break;
         }
     }
