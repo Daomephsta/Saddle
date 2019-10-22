@@ -4,11 +4,17 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.PrintWriter;
+import java.util.EnumMap;
+import java.util.Map;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.platform.launcher.Launcher;
 import org.junit.platform.launcher.LauncherDiscoveryRequest;
+import org.junit.platform.launcher.TestExecutionListener;
+import org.junit.platform.launcher.TestIdentifier;
+import org.junit.platform.launcher.TestPlan;
 import org.junit.platform.launcher.core.LauncherConfig;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
@@ -17,6 +23,7 @@ import org.junit.platform.launcher.listeners.TestExecutionSummary;
 
 import io.github.daomephsta.saddle.engine.SaddleTest.LoadPhase;
 import io.github.daomephsta.saddle.engine.SaddleTestEngine;
+import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
@@ -28,16 +35,66 @@ public class Saddle
     public static final String MOD_ID = "saddle",
                                NAME = "Saddle",
                                VERSION = "GRADLE:VERSION";
+    private static final String ENGINE_ACTIVE_SYSPROP = "saddle.active";
     private static final Logger LOGGER = LogManager.getLogger("Saddle");
     
     private final File SADDLE_LOG_DIR = new File("logs/saddle");
     private SaddleConfiguration configuration;
+    private Map<LoadPhase, Tests> tests;
+    private static class Tests
+    {
+        private final Launcher launcher;
+        private final TestPlan testPlan;
+        
+        Tests(Launcher launcher, TestPlan testPlan)
+        {
+            this.launcher = launcher;
+            this.testPlan = testPlan;
+        }
+        
+        void execute(TestExecutionListener... executionListeners)
+        {
+            launcher.execute(testPlan, executionListeners);
+        }
+
+        public boolean hasTests()
+        {
+            return testPlan.containsTests();
+        }
+    }
     
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event)
     {
+        if (isEnabled())
+        {
+            LOGGER.info("saddle.disable is true, skipping pre-init");
+            return;
+        }
         setup();
+        discoverSaddleTests();
         executeSaddleTests(LoadPhase.PRE_INIT);
+        if (shouldExitOnTestCompletion() && !tests.get(LoadPhase.INIT).hasTests() && !tests.get(LoadPhase.POST_INIT).hasTests())
+        {
+            LOGGER.info("All tests complete, JVM shutting down");
+            FMLCommonHandler.instance().exitJava(0, false);
+        }
+    }
+
+    private void discoverSaddleTests()
+    {
+        tests = new EnumMap<>(LoadPhase.class);
+        for (LoadPhase loadPhase : LoadPhase.values())
+        {
+            LauncherConfig config = buildLauncherConfig(loadPhase);
+            LauncherDiscoveryRequest launcherDiscoveryRequest = buildDiscoveryRequest(loadPhase);
+            Launcher launcher = LauncherFactory.create(config);
+            System.setProperty(ENGINE_ACTIVE_SYSPROP, "true");
+            TestPlan testPlan = launcher.discover(launcherDiscoveryRequest);
+            LOGGER.info("Discovered {} tests for {}", testPlan.countTestIdentifiers(TestIdentifier::isTest), loadPhase);
+            System.setProperty(ENGINE_ACTIVE_SYSPROP, "false");
+            tests.put(loadPhase, new Tests(launcher, testPlan));
+        }
     }
 
     private void setup()
@@ -52,30 +109,42 @@ public class Saddle
     @Mod.EventHandler
     public void init(FMLInitializationEvent event)
     {
+        if (isEnabled())
+        {
+            LOGGER.info("saddle.disable is true, skipping init");
+            return;
+        }
         executeSaddleTests(LoadPhase.INIT);
+        if (shouldExitOnTestCompletion() && !tests.get(LoadPhase.POST_INIT).hasTests())
+        {
+            LOGGER.info("All tests complete, JVM shutting down");
+            FMLCommonHandler.instance().exitJava(0, false);
+        }
     }
     
     @Mod.EventHandler
     public void postInit(FMLPostInitializationEvent event)
     {
+        if (isEnabled())
+        {
+            LOGGER.info("saddle.disable is true, skipping post-init");
+            return;
+        }
         executeSaddleTests(LoadPhase.POST_INIT);
+        if (shouldExitOnTestCompletion())
+        {
+            LOGGER.info("All tests complete, JVM shutting down");
+            FMLCommonHandler.instance().exitJava(0, false);
+        }
     }
     
     private void executeSaddleTests(LoadPhase loadPhase)
     {
-        if (System.getProperty("saddle.disable", "false").equals("true"))
-        {
-            LOGGER.info("saddle.disable is true, skipping tests for {}", loadPhase);
-            return;
-        }
         LOGGER.info("Running tests for {}", loadPhase);
-        LauncherConfig config = buildLauncherConfig(loadPhase);
-        LauncherDiscoveryRequest launcherDiscoveryRequest = buildDiscoveryRequest(loadPhase);
-        Launcher launcher = LauncherFactory.create(config);
-        System.setProperty("saddle.active", "true");
+        System.setProperty(ENGINE_ACTIVE_SYSPROP, "true");
         SummaryGeneratingListener summariser = new SummaryGeneratingListener();
-        launcher.execute(launcherDiscoveryRequest, summariser);
-        System.setProperty("saddle.active", "false");
+        tests.get(loadPhase).execute(summariser, new SaddleTestExecutionLogger(LOGGER, Level.INFO));
+        System.setProperty(ENGINE_ACTIVE_SYSPROP, "false");
         outputTestResults(loadPhase, summariser.getSummary());
     }
 
@@ -121,5 +190,15 @@ public class Saddle
         {
             e.printStackTrace();
         }
+    }
+
+    private boolean isEnabled()
+    {
+        return System.getProperty("saddle.disable", "false").equals("true");
+    }
+
+    private boolean shouldExitOnTestCompletion()
+    {
+        return System.getProperty("saddle.exitOnTestCompletion", "false").equals("true");
     }
 }
